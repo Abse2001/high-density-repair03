@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json.schemastore.org/cosmos-config",
+  "plugins": ["react-cosmos-plugin-vite"],
+  "fixtureFileSuffix": "page",
+  "watchDirs": ["pages", "lib", "tests"],
+  "ui": {
+    "router": {
+      "initialFixtureId": {
+        "path": "pages/hello-world.page.tsx"
+      }
+    }
+  }
+}
