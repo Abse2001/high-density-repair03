@@ -23,6 +23,7 @@ import {
   isBetterDrcSnapshot,
   materializeRoutes,
 } from "./solverHelpers"
+import { applyTraceToPadClearanceRelaxation } from "./traceToPadClearanceRelaxation"
 import type {
   DrcEvaluator,
   DrcSnapshot,
@@ -112,10 +113,16 @@ export class GlobalDrcForceImproveSolver extends BaseSolver {
     routes: HighDensityRoute[],
     snapshot: DrcSnapshot,
   ) {
-    this.outputHdRoutes = routes
-    this.outputSnapshot = snapshot
+    const relaxedRoutes = applyTraceToPadClearanceRelaxation(this.srj, routes)
+    const relaxedSnapshot =
+      relaxedRoutes === routes
+        ? snapshot
+        : getDrcSnapshot(this.srj, relaxedRoutes, this.drcEvaluator)
+
+    this.outputHdRoutes = relaxedRoutes
+    this.outputSnapshot = relaxedSnapshot
     this.stalledIterations = 0
-    this.updateStats(snapshot)
+    this.updateStats(relaxedSnapshot)
     this.solved = true
   }
 
@@ -180,8 +187,7 @@ export class GlobalDrcForceImproveSolver extends BaseSolver {
     }
 
     if (bestSnapshot.count === 0) {
-      this.updateStats(bestSnapshot)
-      this.solved = true
+      this.acceptSolvedRoutes(bestRoutes, bestSnapshot)
       return
     }
 
@@ -190,8 +196,7 @@ export class GlobalDrcForceImproveSolver extends BaseSolver {
     let bestViaIssueCount = getViaDrcIssueCount(bestSnapshot)
     const centeredErrors = getCenteredErrors(bestSnapshot.errors)
     if (centeredErrors.length === 0) {
-      this.updateStats(bestSnapshot)
-      this.solved = true
+      this.acceptSolvedRoutes(bestRoutes, bestSnapshot)
       return
     }
 
@@ -336,13 +341,16 @@ export class GlobalDrcForceImproveSolver extends BaseSolver {
     this.stalledIterations = acceptedCandidate ? 0 : this.stalledIterations + 1
     this.updateDrcCountPlateauState(bestSnapshot)
     this.updateStats(bestSnapshot)
-    if (bestIssueCount === 0) {
-      this.solved = true
+    if (this.solved || bestIssueCount === 0) {
+      this.acceptSolvedRoutes(bestRoutes, bestSnapshot)
     }
   }
 
   override tryFinalAcceptance() {
-    this.solved = true
+    const snapshot =
+      this.outputSnapshot ??
+      getDrcSnapshot(this.srj, this.outputHdRoutes, this.drcEvaluator)
+    this.acceptSolvedRoutes(this.outputHdRoutes, snapshot)
   }
 
   override getOutput() {
