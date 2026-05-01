@@ -181,4 +181,47 @@ describe("GlobalDrcForceImproveSolver", () => {
       end_pcb_port_id: "pcb_port_end",
     })
   })
+
+  test("uses minTraceToPadEdgeClearance in default DRC snapshots", () => {
+    const baseSrj = {
+      bounds: { minX: -2, minY: -2, maxX: 2, maxY: 2 },
+      connections: [{ name: "A", pointsToConnect: [] }],
+      obstacles: [
+        {
+          type: "rect" as const,
+          layers: ["top"],
+          center: { x: 0, y: 0 },
+          width: 1,
+          height: 1,
+          connectedTo: ["pcb_smtpad_1"],
+        },
+      ],
+      layerCount: 2,
+      minTraceWidth: 0.1,
+      minViaDiameter: 0.3,
+    }
+    const hdRoutes = [
+      {
+        connectionName: "A",
+        route: [
+          { x: 0.7, y: -1, z: 0 },
+          { x: 0.7, y: 1, z: 0 },
+        ],
+        vias: [],
+        traceThickness: 0.1,
+        viaDiameter: 0.3,
+      },
+    ]
+
+    expect(getDrcSnapshot(baseSrj, hdRoutes).count).toBe(0)
+    expect(
+      getDrcSnapshot(
+        {
+          ...baseSrj,
+          minTraceToPadEdgeClearance: 0.25,
+        },
+        hdRoutes,
+      ).count,
+    ).toBeGreaterThan(0)
+  })
 })
