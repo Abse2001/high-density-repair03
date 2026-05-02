@@ -3,7 +3,7 @@ import {
   expect,
   GlobalDrcForceImproveSolver,
   test,
-} from "./solver-test-helpers"
+} from "./solver-test-helpers.ts"
 
 describe("GlobalDrcForceImproveSolver", () => {
   test("scales max iterations with initial DRC error count", () => {

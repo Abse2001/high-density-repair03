@@ -4,8 +4,8 @@ import {
   describe,
   expect,
   test,
-} from "./solver-test-helpers"
-import type { SimpleRouteJson } from "./solver-test-helpers"
+} from "./solver-test-helpers.ts"
+import type { SimpleRouteJson } from "./solver-test-helpers.ts"
 
 describe("GlobalDrcForceImproveSolver", () => {
   test("does not push an obstacle-repair segment run outside board outline", () => {

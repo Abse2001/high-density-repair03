@@ -4,8 +4,8 @@ import {
   getDrcSnapshot,
   GlobalDrcForceImproveSolver,
   test,
-} from "./solver-test-helpers"
-import type { SimpleRouteJson } from "./solver-test-helpers"
+} from "./solver-test-helpers.ts"
+import type { SimpleRouteJson } from "./solver-test-helpers.ts"
 
 describe("GlobalDrcForceImproveSolver", () => {
   test("solves in a single step", () => {
