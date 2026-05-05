@@ -1,9 +1,16 @@
-import { distance, getUnitVectorFromPointAToB } from "@tscircuit/math-utils"
-import { getRootConnectionName, obstacleSharesNet } from "./netUtils"
-import { cloneRoutes, materializeRoutes } from "./solverHelpers"
-import { mapZToLayerName } from "../../utils/mapZToLayerName"
+import { distance } from "@tscircuit/math-utils"
+import { obstacleSharesNet } from "./netUtils"
+import {
+  cloneRoutes,
+  collectViaNodes,
+  getObstacleZLayers,
+  getPointToObstacleDistance,
+  getRectRepulsion,
+  materializeRoutes,
+} from "./solverHelpers"
 import type { SimpleRouteJson } from "../../types"
 import type { HighDensityRoute } from "../../types/high-density-types"
+import type { ViaNode } from "./internalTypes"
 
 const CLEARANCE_EPSILON = 1e-6
 const RELAXATION_CLEARANCE_SLACK = 0.006
@@ -14,28 +21,8 @@ const CANDIDATE_SCALES = [1, 0.5, 0.25, 0.1, 0.05, 0.025] as const
 
 type Point2D = { x: number; y: number }
 
-type ViaNode = {
-  routeIndex: number
-  rootConnectionName: string
-  pointIndexes: number[]
-  zLayers: number[]
-  x: number
-  y: number
-  radius: number
-  movable: boolean
-}
-
 type ViaPadBlocker = {
   obstacle: SimpleRouteJson["obstacles"][number]
-}
-
-const pointsEqual = (left: Point2D, right: Point2D) =>
-  distance(left, right) < CLEARANCE_EPSILON
-
-const normalizeVector = (vector: Point2D): Point2D => {
-  const magnitude = distance({ x: 0, y: 0 }, vector)
-  if (magnitude < CLEARANCE_EPSILON) return { x: 0, y: 0 }
-  return getUnitVectorFromPointAToB({ x: 0, y: 0 }, vector)
 }
 
 const limitVector = (vector: Point2D, maxMagnitude: number): Point2D => {
@@ -43,26 +30,6 @@ const limitVector = (vector: Point2D, maxMagnitude: number): Point2D => {
   if (magnitude <= maxMagnitude || magnitude < CLEARANCE_EPSILON) return vector
   const scale = maxMagnitude / magnitude
   return { x: vector.x * scale, y: vector.y * scale }
-}
-
-const getRouteViaDiameter = (srj: SimpleRouteJson, route: HighDensityRoute) =>
-  route.viaDiameter ?? srj.minViaDiameter ?? 0.3
-
-const getObstacleZLayers = (
-  obstacle: SimpleRouteJson["obstacles"][number],
-  layerCount: number,
-) => {
-  if (obstacle.zLayers && obstacle.zLayers.length > 0) {
-    return obstacle.zLayers
-  }
-
-  const zLayers = Array.from({ length: layerCount }, (_, z) => z).filter((z) =>
-    obstacle.layers.includes(mapZToLayerName(z, layerCount)),
-  )
-
-  return zLayers.length > 0
-    ? zLayers
-    : Array.from({ length: layerCount }, (_, z) => z)
 }
 
 const zLayersOverlap = (left: number[], right: number[]) =>
@@ -80,63 +47,6 @@ const viaIsAttachedToSameNetObstacle = (
   return (
     isSameNet && getPointToObstacleDistance(via, obstacle) <= CLEARANCE_EPSILON
   )
-}
-
-const collectViaNodes = (
-  srj: SimpleRouteJson,
-  routes: HighDensityRoute[],
-): ViaNode[] => {
-  const vias: ViaNode[] = []
-
-  for (let routeIndex = 0; routeIndex < routes.length; routeIndex += 1) {
-    const route = routes[routeIndex]
-    if (!route) continue
-    const seenIndexes = new Set<number>()
-
-    for (let index = 0; index < route.route.length - 1; index += 1) {
-      const current = route.route[index]
-      const next = route.route[index + 1]
-      if (!current || !next) continue
-      if (current.z === next.z || !pointsEqual(current, next)) continue
-
-      const pointIndexes = [index, index + 1]
-      for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
-        const point = route.route[cursor]
-        if (!point || !pointsEqual(point, current)) break
-        pointIndexes.push(cursor)
-      }
-      for (let cursor = index + 2; cursor < route.route.length; cursor += 1) {
-        const point = route.route[cursor]
-        if (!point || !pointsEqual(point, current)) break
-        pointIndexes.push(cursor)
-      }
-
-      const uniquePointIndexes = [...new Set(pointIndexes)]
-      if (
-        uniquePointIndexes.some((pointIndex) => seenIndexes.has(pointIndex))
-      ) {
-        continue
-      }
-      for (const pointIndex of uniquePointIndexes) {
-        seenIndexes.add(pointIndex)
-      }
-
-      vias.push({
-        routeIndex,
-        rootConnectionName: getRootConnectionName(route),
-        pointIndexes: uniquePointIndexes,
-        zLayers: [...new Set(uniquePointIndexes.map((i) => route.route[i]!.z))],
-        x: current.x,
-        y: current.y,
-        radius: getRouteViaDiameter(srj, route) / 2,
-        movable:
-          !uniquePointIndexes.includes(0) &&
-          !uniquePointIndexes.includes(route.route.length - 1),
-      })
-    }
-  }
-
-  return vias
 }
 
 const getViaPadBlockers = (
@@ -162,63 +72,6 @@ const getViaPadBlockers = (
   }
 
   return blockers
-}
-
-const getPointToObstacleDistance = (
-  point: Point2D,
-  obstacle: SimpleRouteJson["obstacles"][number],
-) => {
-  const halfWidth = obstacle.width / 2
-  const halfHeight = obstacle.height / 2
-  const dx = Math.max(Math.abs(point.x - obstacle.center.x) - halfWidth, 0)
-  const dy = Math.max(Math.abs(point.y - obstacle.center.y) - halfHeight, 0)
-  return Math.hypot(dx, dy)
-}
-
-const getRectRepulsion = (
-  point: Point2D,
-  obstacle: SimpleRouteJson["obstacles"][number],
-  requiredDistance: number,
-) => {
-  const halfWidth = obstacle.width / 2
-  const halfHeight = obstacle.height / 2
-  const closestX = Math.min(
-    Math.max(point.x, obstacle.center.x - halfWidth),
-    obstacle.center.x + halfWidth,
-  )
-  const closestY = Math.min(
-    Math.max(point.y, obstacle.center.y - halfHeight),
-    obstacle.center.y + halfHeight,
-  )
-  let separationX = point.x - closestX
-  let separationY = point.y - closestY
-  let currentDistance = Math.hypot(separationX, separationY)
-
-  if (currentDistance <= CLEARANCE_EPSILON) {
-    const dxToSide = halfWidth - Math.abs(point.x - obstacle.center.x)
-    const dyToSide = halfHeight - Math.abs(point.y - obstacle.center.y)
-    if (dxToSide < dyToSide) {
-      separationX = point.x >= obstacle.center.x ? 1 : -1
-      separationY = 0
-    } else {
-      separationX = 0
-      separationY = point.y >= obstacle.center.y ? 1 : -1
-    }
-    currentDistance = 0
-  }
-
-  const penetration = requiredDistance - currentDistance
-  if (penetration <= 0) return undefined
-
-  const direction = normalizeVector({ x: separationX, y: separationY })
-  if (
-    Math.abs(direction.x) < CLEARANCE_EPSILON &&
-    Math.abs(direction.y) < CLEARANCE_EPSILON
-  ) {
-    return undefined
-  }
-
-  return { direction, penetration }
 }
 
 const getSignedClearanceToBlocker = (
@@ -255,7 +108,7 @@ const getRouteViaClearancePenalty = (
   routes: HighDensityRoute[],
   routeIndex: number,
 ) =>
-  collectViaNodes(srj, routes)
+  collectViaNodes(routes, srj.minViaDiameter)
     .filter((via) => via.routeIndex === routeIndex)
     .reduce(
       (penalty, via) => penalty + getViaClearancePenalty(srj, routes, via),
@@ -270,7 +123,7 @@ const computeViaNudgeForces = (
   const route = routes[routeIndex]
   if (!route) return []
   const forces = route.route.map(() => ({ x: 0, y: 0 }))
-  const vias = collectViaNodes(srj, routes).filter(
+  const vias = collectViaNodes(routes, srj.minViaDiameter).filter(
     (via) => via.routeIndex === routeIndex,
   )
 
@@ -306,7 +159,7 @@ const applyNudgeForces = (
   scale: number,
 ): HighDensityRoute => {
   const viaPointIndexes = new Set(
-    collectViaNodes(srj, [route]).flatMap((via) =>
+    collectViaNodes([route], srj.minViaDiameter).flatMap((via) =>
       via.movable ? via.pointIndexes : [],
     ),
   )
