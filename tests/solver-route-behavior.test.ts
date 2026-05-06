@@ -186,6 +186,72 @@ test("does not move a trace away from a same-net pad", () => {
   }
 })
 
+test("moves a trace until its edge clears an inferred different-net via edge", () => {
+  const srj: SimpleRouteJson = {
+    bounds: { minX: -1, minY: -1, maxX: 5, maxY: 3 },
+    connections: [
+      { name: "A", pointsToConnect: [] },
+      { name: "B", pointsToConnect: [] },
+    ],
+    obstacles: [],
+    layerCount: 2,
+    minTraceWidth: 0.1,
+    minViaDiameter: 0.3,
+    minTraceToPadEdgeClearance: 0.2,
+  }
+  const hdRoutes = [
+    {
+      connectionName: "A",
+      route: [
+        { x: 0, y: 0, z: 0 },
+        { x: 0, y: 1.1, z: 0 },
+        { x: 4, y: 1.1, z: 0 },
+        { x: 4, y: 0, z: 0 },
+      ],
+      vias: [],
+      traceThickness: 0.1,
+      viaDiameter: 0.3,
+    },
+    {
+      connectionName: "B",
+      route: [
+        { x: 2, y: 1, z: 0 },
+        { x: 2, y: 1, z: 1 },
+        { x: 2, y: 2, z: 1 },
+      ],
+      vias: [],
+      traceThickness: 0.1,
+      viaDiameter: 0.3,
+    },
+  ]
+  const solver = new GlobalDrcForceImproveSolver({
+    srj,
+    hdRoutes,
+    maxIterations: 1,
+    drcEvaluator: () => [],
+  })
+
+  solver.solve()
+
+  const output = solver.getOutput()
+  const movedStart = output[0]?.route[1]
+  const movedEnd = output[0]?.route[2]
+  const inferredViaCenter = { x: 2, y: 1 }
+  const viaRadius = 0.15
+  const traceHalfWidth = 0.05
+  const requiredClearance = 0.2
+
+  expect(movedStart?.y).toBeGreaterThan(1.1)
+  expect(movedEnd?.y).toBeCloseTo(movedStart!.y, 6)
+  expect(movedStart?.x).toBeCloseTo(0, 6)
+  expect(movedEnd?.x).toBeCloseTo(4, 6)
+  expect(output[1]?.route[0]).toMatchObject(inferredViaCenter)
+  expect(output[1]?.route[1]).toMatchObject(inferredViaCenter)
+  const traceEdgeToViaEdgeClearance =
+    movedStart!.y - inferredViaCenter.y - viaRadius - traceHalfWidth
+  expect(traceEdgeToViaEdgeClearance).toBeGreaterThanOrEqual(requiredClearance)
+})
+
 test("moves a via until its edge clears a different-net pad edge", () => {
   const srj: SimpleRouteJson = {
     bounds: { minX: -2, minY: -2, maxX: 6, maxY: 4 },

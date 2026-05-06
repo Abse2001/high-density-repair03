@@ -47,6 +47,31 @@ const getRouteViaDiameter = (srj: SimpleRouteJson, route: HighDensityRoute) =>
 const pointsEqual = (left: Point2D, right: Point2D) =>
   distance(left, right) < CLEARANCE_EPSILON
 
+const getRouteViaCenters = (route: HighDensityRoute): Point2D[] => {
+  const viaCenters: Point2D[] = []
+
+  const addViaCenter = (center: Point2D) => {
+    if (viaCenters.some((viaCenter) => pointsEqual(viaCenter, center))) {
+      return
+    }
+    viaCenters.push({ x: center.x, y: center.y })
+  }
+
+  for (const via of route.vias) {
+    addViaCenter(via)
+  }
+
+  for (let i = 0; i < route.route.length - 1; i += 1) {
+    const start = route.route[i]
+    const end = route.route[i + 1]
+    if (!start || !end || start.z === end.z) continue
+    if (!pointsEqual(start, end)) continue
+    addViaCenter(start)
+  }
+
+  return viaCenters
+}
+
 const normalizeVector = (vector: Point2D): Point2D => {
   const magnitude = distance({ x: 0, y: 0 }, vector)
   if (magnitude < CLEARANCE_EPSILON) return { x: 0, y: 0 }
@@ -113,7 +138,7 @@ const getClearanceBlockersForRoute = (
   for (const otherRoute of routes) {
     if (otherRoute === route || routesAreConnected(route, otherRoute)) continue
 
-    for (const via of otherRoute.vias) {
+    for (const via of getRouteViaCenters(otherRoute)) {
       blockers.push({
         kind: "via",
         center: { x: via.x, y: via.y },
@@ -292,7 +317,7 @@ const getRouteOtherTraceClearancePenalty = (
         if (violation > 0) penalty += violation * violation
       }
 
-      for (const via of otherRoute.vias) {
+      for (const via of getRouteViaCenters(otherRoute)) {
         const clearance =
           pointToSegmentDistance(via, start, end) -
           getTraceHalfWidth(srj, route) -
