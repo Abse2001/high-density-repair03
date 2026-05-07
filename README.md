@@ -5,7 +5,7 @@ This package contains a `GlobalDrcForceImproveSolver` for improving high-density
 ## Install
 
 ```bash
-bun install
+bun install 
 ```
 
 ## Develop
@@ -27,6 +27,58 @@ Run typecheck:
 ```bash
 bun run typecheck
 ```
+
+## Benchmark
+
+Run the DRC14 benchmark locally:
+
+```bash
+bun run benchmark:drc14
+```
+
+You can also use the shell wrapper, which is the entrypoint used by CI:
+
+```bash
+./benchmark.sh
+./benchmark.sh 10
+./benchmark.sh --limit all --concurrency 4
+./benchmark.sh --scenario-limit 20 --effort 2 --max-iterations 100
+```
+
+The benchmark runs the pinned `dataset-drc14` samples through `GlobalDrcForceImproveSolver`. It prints each sample's initial-to-final DRC count, then prints a summary table. By default it writes `benchmark-result.json`; this is generated output and is ignored by git.
+
+Useful options:
+
+- `--limit` / `--scenario-limit`: run the first N samples, or `all`
+- `--concurrency N|auto`: number of Bun workers
+- `--effort`: solver effort value
+- `--max-iterations`: solver max iteration override
+- `--out`: output path for the JSON benchmark report
+- `--no-out`: skip writing the JSON report
+- `--json`: print the JSON report to stdout
+- `--fail-on-drc`: exit non-zero if final DRC issues remain
+
+### Benchmark CI
+
+Benchmark CI can be triggered by commenting on a PR:
+
+```txt
+/benchmark [benchmark.sh args...]
+```
+
+Examples:
+
+```txt
+/benchmark
+/benchmark 10
+/benchmark all --concurrency 4
+/benchmark --scenario-limit all --effort 2
+/benchmark --scenario-limit 20 --max-iterations 100
+```
+
+PRs with `[BENCHMARK TEST]` in the title run the benchmark workflow automatically on PR updates. The workflow can also be run manually with `workflow_dispatch`, including scenario limit, concurrency, effort, max iterations, and ref inputs.
+
+For PR comment runs, CI posts Markdown tables for the PR benchmark and the latest successful `main` benchmark artifact when available. The PR table includes deltas versus `main` for DRC counts and timing metrics.
 
 ## Usage
 
