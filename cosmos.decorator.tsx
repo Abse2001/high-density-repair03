@@ -1,9 +1,7 @@
-import type { ReactNode } from "react"
+import type { ReactDecorator } from "react-cosmos-core"
 
-export default function CosmosDecorator({
-  children,
-}: {
-  children?: ReactNode
-}) {
-  return <>{children}</>
+const decorator: ReactDecorator = ({ children }) => {
+  return <div style={{ padding: 16 }}>{children}</div>
 }
+
+export default decorator
