@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     // Environment setup & latest features
-    "lib": ["ESNext"],
+    "lib": ["ESNext", "DOM"],
     "target": "ESNext",
     "module": "ESNext",
     "moduleDetection": "force",
@@ -13,7 +13,7 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
-    "types": ["bun"],
+    "types": ["bun", "vite/client"],
 
     // Best practices
     "strict": true,
@@ -27,5 +27,5 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": ["lib", "pages", "tests", "vite.config.ts", "cosmos.decorator.tsx"]
+  "include": ["lib", "fixtures", "tests", "*.ts", "*.tsx"]
 }
