@@ -575,7 +575,14 @@ export class GlobalDrcForceImproveSolver extends BaseSolver {
     let tracePairDetourAttemptedThisStep = false
     let acceptedCandidate = false
     let attemptedPeriodicLargeBoardBroadFallback = false
-    const activeRepairErrors = getLegacyFirstRepairErrors(centeredErrors)
+    const legacyFirstRepairErrors = getLegacyFirstRepairErrors(centeredErrors)
+    const hasDeferredViaPadErrors =
+      legacyFirstRepairErrors.length < centeredErrors.length
+    // Preserve legacy-first ordering, but keep independent via-pad errors in
+    // the round-robin queue so one stalled legacy error cannot starve them.
+    const activeRepairErrors = hasDeferredViaPadErrors
+      ? [...legacyFirstRepairErrors, ...centeredErrors.filter(isViaPadDrcError)]
+      : legacyFirstRepairErrors
     const sameNetViaError = this.enableTargetedErrorSweep
       ? activeRepairErrors.find(
           (error) =>
