@@ -284,7 +284,8 @@ const createDrcSnapshot = (
           drcSrj.minTraceToPadEdgeClearance ??
           RELAXED_DRC_OPTIONS.traceClearance,
         viaClearance:
-          drcSrj.minTraceToPadEdgeClearance ?? RELAXED_DRC_OPTIONS.viaClearance,
+          drcSrj.minViaHoleEdgeToViaHoleEdgeClearance ??
+          RELAXED_DRC_OPTIONS.viaClearance,
       },
     )
 

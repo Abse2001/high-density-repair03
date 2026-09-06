@@ -107,8 +107,10 @@ export class GlobalDrcBranchPortfolioSolver extends BaseSolver {
               params.srj.minTraceToPadEdgeClearance ??
               RELAXED_DRC_OPTIONS.traceClearance,
             viaClearance:
-              params.srj.minTraceToPadEdgeClearance ??
+              params.srj.minViaHoleEdgeToViaHoleEdgeClearance ??
               RELAXED_DRC_OPTIONS.viaClearance,
+            viaHoleDiameter:
+              params.viaHoleDiameter ?? params.srj.minViaHoleDiameter,
             includeTraceViaOwnerMetadata:
               params.enableTraceViaOwnerTargeting ?? false,
           }))
