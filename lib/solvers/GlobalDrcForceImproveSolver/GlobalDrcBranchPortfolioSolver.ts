@@ -565,7 +565,12 @@ export class GlobalDrcBranchPortfolioSolver extends BaseSolver {
         this.mixedReferenceCandidateDrcIssueCount =
           referenceCandidateSnapshot.count
         improvesReferenceDrc =
-          referenceCandidateSnapshot.count <= referenceInputSnapshot.count
+          referenceCandidateSnapshot.count <= referenceInputSnapshot.count &&
+          (referenceCandidateSnapshot.count < referenceInputSnapshot.count ||
+            !hasNewDrcErrorIdentities(
+              referenceCandidateSnapshot.errors,
+              referenceInputSnapshot.errors,
+            ))
       }
       this.mixedSafeTraceLayerPhaseAccepted =
         doesNotRegressLegacyDrc && improvesReferenceDrc

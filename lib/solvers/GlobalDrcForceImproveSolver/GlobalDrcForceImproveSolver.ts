@@ -39,6 +39,7 @@ import {
   getNonViaPadDrcIssueCount,
   getRepairDrcIssueCount,
   getRepairDrcIssueScore,
+  hasNewDrcErrorIdentities,
   getTargetedClearanceSweepErrors,
   getTraceRouteIndexForError,
   getTraceRoutePairForError,
@@ -433,7 +434,14 @@ export class GlobalDrcForceImproveSolver extends BaseSolver {
         this.getReferenceDrcSnapshot(acceptedRoutes)
       this.referenceInputDrcIssueCount = referenceInputSnapshot.count
       this.referenceCandidateDrcIssueCount = referenceCandidateSnapshot.count
-      if (referenceCandidateSnapshot.count > referenceInputSnapshot.count) {
+      if (
+        referenceCandidateSnapshot.count > referenceInputSnapshot.count ||
+        (referenceCandidateSnapshot.count === referenceInputSnapshot.count &&
+          hasNewDrcErrorIdentities(
+            referenceCandidateSnapshot.errors,
+            referenceInputSnapshot.errors,
+          ))
+      ) {
         acceptedRoutes = this.guardedInputHdRoutes
         acceptedSnapshot = inputSnapshot
         this.referenceCandidateRolledBack = true
