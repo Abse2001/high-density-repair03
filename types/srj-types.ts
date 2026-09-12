@@ -47,6 +47,11 @@ export interface SimpleRouteJson {
   nominalTraceWidth?: number
   minViaDiameter?: number
   minViaHoleDiameter?: number
+  /**
+   * Enables blind and buried vias. When omitted or false, each routed via is a
+   * through-via that occupies every copper layer in the board stackup.
+   */
+  allowBlindAndBuriedVias?: boolean
   minBoardEdgeClearance?: number
   minTraceToPadEdgeClearance?: number
   minViaEdgeToPadEdgeClearance?: number
