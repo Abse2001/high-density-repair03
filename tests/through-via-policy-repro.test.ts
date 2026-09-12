@@ -135,14 +135,11 @@ test("captures the default through-via policy mismatch", () => {
   expect(snapshotSvg).toBe(readFileSync(snapshotPath, "utf8"))
 })
 
-test.failing(
-  "detects the bottom-layer collision when blind and buried vias are disabled",
-  () => {
-    expect(new AutoroutingDrcEngine(srj).evaluate(traces).errors).toHaveLength(1)
-    expect(
-      convertToCircuitJson(srj, traces).find(
-        (element) => element.type === "pcb_via",
-      ),
-    ).toMatchObject({ layers: ["top", "inner1", "inner2", "bottom"] })
-  },
-)
+test.failing("detects the bottom-layer collision when blind and buried vias are disabled", () => {
+  expect(new AutoroutingDrcEngine(srj).evaluate(traces).errors).toHaveLength(1)
+  expect(
+    convertToCircuitJson(srj, traces).find(
+      (element) => element.type === "pcb_via",
+    ),
+  ).toMatchObject({ layers: ["top", "inner1", "inner2", "bottom"] })
+})
