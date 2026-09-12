@@ -5,8 +5,18 @@ type ViaSpan = {
   to_layer: string
 }
 
-/** Expand via endpoints into the inclusive span of board layers. */
-export const getViaLayers = (via: ViaSpan, layerCount: number): string[] => {
+/**
+ * Resolve the physical copper layers occupied by an autorouted via.
+ *
+ * Boards use through-vias unless blind and buried vias are explicitly
+ * enabled. In that default case, a route transition such as top -> inner2
+ * still drills through the bottom layer.
+ */
+export const getViaLayers = (
+  via: ViaSpan,
+  layerCount: number,
+  allowBlindAndBuriedVias = false,
+): string[] => {
   if (!Number.isInteger(layerCount) || layerCount < 1) {
     throw new Error(`Invalid board layer count: ${layerCount}`)
   }
@@ -19,6 +29,9 @@ export const getViaLayers = (via: ViaSpan, layerCount: number): string[] => {
     throw new Error(
       `Via span ${via.from_layer} -> ${via.to_layer} is outside the board`,
     )
+  }
+  if (!allowBlindAndBuriedVias) {
+    return boardLayers
   }
   return boardLayers.slice(Math.min(from, to), Math.max(from, to) + 1)
 }

@@ -7,6 +7,7 @@ test("checks via-to-pad clearance on intermediate layers only within the span", 
     layerCount: 4,
     minTraceWidth: 0.1,
     minViaDiameter: 0.3,
+    allowBlindAndBuriedVias: true,
     bounds: { minX: -2, minY: -2, maxX: 2, maxY: 2 },
     connections: [],
     obstacles: [

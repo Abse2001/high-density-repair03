@@ -8,6 +8,7 @@ test("DRC checks forward and reversed via endpoint spans identically", () => {
     layerCount: 4,
     minTraceWidth: 0.12,
     minViaDiameter: 0.2,
+    allowBlindAndBuriedVias: true,
     bounds: { minX: -2, minY: -2, maxX: 2, maxY: 2 },
     obstacles: [],
     connections: [],
