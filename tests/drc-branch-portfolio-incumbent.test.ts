@@ -5,14 +5,20 @@ import {
   GlobalDrcBranchPortfolioSolver,
   GlobalDrcForceImproveSolver,
   type HighDensityRoute,
+  type SimpleRouteJson,
 } from "../lib"
 import * as helpers from "../lib/solvers/GlobalDrcForceImproveSolver/solverHelpers"
-import { getUsbCircuitRender } from "./fixtures/getUsbCircuitRender"
 import recordedOutputs from "./fixtures/usb-portfolio-branch-outputs.json"
+import recordedInput from "./fixtures/usb-portfolio-repair-input.json"
 
-test("keeps an accepted safe-layer candidate when a later broad branch only ties it", async () => {
-  const { phases } = await getUsbCircuitRender()
-  const repair = phases[2]!.repairs[0]!
+test("keeps an accepted safe-layer candidate when a later broad branch only ties it", () => {
+  // Unchanged CC1 repair input captured from the native USB fixture using
+  // the autorouter's existing repair03 pin (5f6c9af). No routes are authored.
+  const repair = recordedInput as {
+    srj: SimpleRouteJson
+    input: HighDensityRoute[]
+    netMap: Record<string, string[]>
+  }
   const originalInput = structuredClone(repair.input)
   const connMap = new ConnectivityMap(repair.netMap)
   const engine = new AutoroutingDrcEngine(repair.srj, { connMap })
