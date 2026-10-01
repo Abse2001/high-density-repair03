@@ -146,6 +146,11 @@ export interface AutoroutingDrcEngineOptions {
    */
   connMap?: ConnectivityMap
   /**
+   * Declares that `connMap` will not change during this engine's lifetime.
+   * Required when connectivity-dependent caches are enabled with a map.
+   */
+  connectivityMapIsImmutable?: boolean
+  /**
    * Include explicit trace/via owner ids for preload-aware repair targeting.
    * Defaults to false so legacy callers receive the original error shape.
    */
@@ -591,13 +596,21 @@ export class AutoroutingDrcEngine {
       throw new Error("spatialCellSize must be a positive finite number")
     }
 
-    if (options.cacheStaticObstacleNetMembership && this.connMap) {
+    if (
+      options.cacheStaticObstacleNetMembership &&
+      this.connMap &&
+      !options.connectivityMapIsImmutable
+    ) {
       throw new Error(
         "cacheStaticObstacleNetMembership cannot be combined with connMap",
       )
     }
 
-    if (this.cacheImmutableTraceGeometry && this.connMap) {
+    if (
+      this.cacheImmutableTraceGeometry &&
+      this.connMap &&
+      !options.connectivityMapIsImmutable
+    ) {
       throw new Error(
         "cacheImmutableTraceGeometry cannot be combined with connMap",
       )
