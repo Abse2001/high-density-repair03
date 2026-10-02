@@ -1975,10 +1975,13 @@ const translateVia = (
 }
 
 const getSameRootViaSite = (
-  currentVias: ViaNode[],
+  routes: MutableRoute[],
   via: ViaNode,
+  srj: SimpleRouteJson,
+  currentVias?: ViaNode[],
 ): ViaNode[] => {
-  const currentVia = currentVias.find(
+  const resolvedVias = currentVias ?? collectViaNodes(routes, srj)
+  const currentVia = resolvedVias.find(
     (candidate) =>
       candidate.routeIndex === via.routeIndex &&
       candidate.pointIndexes.some((pointIndex) =>
@@ -1987,7 +1990,7 @@ const getSameRootViaSite = (
   )
   if (!currentVia) return []
 
-  return currentVias.filter(
+  return resolvedVias.filter(
     (candidate) =>
       candidate.rootConnectionName === currentVia.rootConnectionName &&
       Math.hypot(candidate.x - currentVia.x, candidate.y - currentVia.y) <=
@@ -1997,13 +2000,13 @@ const getSameRootViaSite = (
 
 const translateSameRootViaSite = (
   routes: MutableRoute[],
-  currentVias: ViaNode[],
   via: ViaNode,
   dx: number,
   dy: number,
   srj: SimpleRouteJson,
+  currentVias?: ViaNode[],
 ) => {
-  const siteVias = getSameRootViaSite(currentVias, via)
+  const siteVias = getSameRootViaSite(routes, via, srj, currentVias)
   if (
     siteVias.length === 0 ||
     siteVias.some(
@@ -2035,14 +2038,14 @@ const translateSameRootViaSite = (
 
 const moveVia = (
   routes: MutableRoute[],
-  currentVias: ViaNode[],
   via: ViaNode,
   dx: number,
   dy: number,
   srj: SimpleRouteJson,
+  currentVias?: ViaNode[],
 ) =>
   via.movable &&
-  getSameRootViaSite(currentVias, via).length <= 1 &&
+  getSameRootViaSite(routes, via, srj, currentVias).length <= 1 &&
   translateVia(routes, via, dx, dy, srj)
 
 const moveSegmentAwayFromPoint = (
@@ -2345,10 +2348,10 @@ const getNearestViaPair = (vias: ViaNode[], point: Point) => {
 
 const moveViaAwayFromPoint = (
   routes: MutableRoute[],
-  currentVias: ViaNode[],
   via: ViaNode,
   point: Point,
   srj: SimpleRouteJson,
+  currentVias?: ViaNode[],
 ) => {
   const separationX = via.x - point.x
   const separationY = via.y - point.y
@@ -2358,11 +2361,11 @@ const moveViaAwayFromPoint = (
 
   return moveVia(
     routes,
-    currentVias,
     via,
     directionX * MAX_ERROR_MOVE,
     directionY * MAX_ERROR_MOVE,
     srj,
+    currentVias,
   )
 }
 
@@ -2448,12 +2451,12 @@ const pushViaViaPair = (
   left: ViaNode,
   right: ViaNode,
   srj: SimpleRouteJson,
-  connMap: ConnectivityMap | undefined,
+  connMap?: ConnectivityMap,
   options: {
     maxMove?: number
     allowSameNet?: boolean
-    currentVias: ViaNode[]
-  },
+    currentVias?: ViaNode[]
+  } = {},
 ) => {
   const {
     maxMove = BROAD_MAX_MOVE,
@@ -2493,19 +2496,19 @@ const pushViaViaPair = (
   const move = Math.min(maxMove, penetration / movableCount)
   const movedLeft = moveVia(
     routes,
-    currentVias,
     left,
     directionX * move,
     directionY * move,
     srj,
+    currentVias,
   )
   const movedRight = moveVia(
     routes,
-    currentVias,
     right,
     -directionX * move,
     -directionY * move,
     srj,
+    currentVias,
   )
   return movedLeft || movedRight
 }
@@ -2574,13 +2577,13 @@ const pushViaSegmentPair = (
   via: ViaNode,
   segment: Segment,
   srj: SimpleRouteJson,
-  connMap: ConnectivityMap | undefined,
+  connMap?: ConnectivityMap,
   options: {
     maxMove?: number
     moveDivisor?: number
     translateSharedViaSite?: boolean
-    currentVias: ViaNode[]
-  },
+    currentVias?: ViaNode[]
+  } = {},
 ) => {
   const {
     maxMove = BROAD_MAX_MOVE,
@@ -2623,19 +2626,19 @@ const pushViaSegmentPair = (
   const movedVia = translateSharedViaSite
     ? translateSameRootViaSite(
         routes,
-        currentVias,
         via,
         directionX * move,
         directionY * move,
         srj,
+        currentVias,
       )
     : moveVia(
         routes,
-        currentVias,
         via,
         directionX * move,
         directionY * move,
         srj,
+        currentVias,
       )
   const movedSegment = moveSegmentByDistribution(
     routes,
@@ -2906,7 +2909,6 @@ const pushMovablesAwayFromObstacles = (
       changed =
         moveVia(
           routes,
-          vias,
           via,
           repulsion.direction.x * move,
           repulsion.direction.y * move,
@@ -3024,7 +3026,6 @@ const applyBroadRepulsionPass = (
           segment,
           srj,
           connMap,
-          { currentVias: vias },
         ) || changed
     }
   }
@@ -3099,7 +3100,7 @@ const applyBroadViaSegmentCleanupPass = (
           segment,
           srj,
           connMap,
-          { moveDivisor: 1.75, currentVias: vias },
+          { moveDivisor: 1.75 },
         ) || changed
     }
   }
@@ -4344,7 +4345,14 @@ export const applyViaOnlyDisplacementForTraceError = (
     connMap,
   })
   if (!target) return false
-  return moveVia(routes, vias, via, target.x - via.x, target.y - via.y, srj)
+  return moveVia(
+    routes,
+    via,
+    target.x - via.x,
+    target.y - via.y,
+    srj,
+    vias,
+  )
 }
 
 const getTraceSegmentForError = (
@@ -4867,10 +4875,10 @@ export const applyDrcErrorForces = (
           changed =
             moveViaAwayFromPoint(
               routes,
-              vias,
               nearestVia,
               repulsionPoint,
               srj,
+              vias,
             ) ||
             changed
         }
@@ -4905,10 +4913,10 @@ export const applyDrcErrorForces = (
         changed =
           moveViaAwayFromPoint(
             routes,
-            vias,
             nearestOwnerVia,
             center,
             srj,
+            vias,
           ) || changed
         continue
       }
@@ -5050,10 +5058,10 @@ export const applyDrcErrorForces = (
       changed =
         moveViaAwayFromPoint(
           routes,
-          refreshedVias,
           nearestVia,
           repulsionPoint,
           srj,
+          refreshedVias,
         ) || changed
     }
   }
