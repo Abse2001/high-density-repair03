@@ -2351,7 +2351,6 @@ const moveViaAwayFromPoint = (
   via: ViaNode,
   point: Point,
   srj: SimpleRouteJson,
-  currentVias?: ViaNode[],
 ) => {
   const separationX = via.x - point.x
   const separationY = via.y - point.y
@@ -2365,7 +2364,6 @@ const moveViaAwayFromPoint = (
     directionX * MAX_ERROR_MOVE,
     directionY * MAX_ERROR_MOVE,
     srj,
-    currentVias,
   )
 }
 
@@ -4345,14 +4343,7 @@ export const applyViaOnlyDisplacementForTraceError = (
     connMap,
   })
   if (!target) return false
-  return moveVia(
-    routes,
-    via,
-    target.x - via.x,
-    target.y - via.y,
-    srj,
-    vias,
-  )
+  return moveVia(routes, via, target.x - via.x, target.y - via.y, srj)
 }
 
 const getTraceSegmentForError = (
@@ -4866,7 +4857,6 @@ export const applyDrcErrorForces = (
                 {
                   maxMove: VIA_PAIR_REPAIR_MAX_MOVE * Math.abs(scale),
                   allowSameNet: isCanonicalViaPairError,
-                  currentVias: vias,
                 },
               )) || changed
       } else {
@@ -4878,7 +4868,6 @@ export const applyDrcErrorForces = (
               nearestVia,
               repulsionPoint,
               srj,
-              vias,
             ) ||
             changed
         }
@@ -4916,7 +4905,6 @@ export const applyDrcErrorForces = (
             nearestOwnerVia,
             center,
             srj,
-            vias,
           ) || changed
         continue
       }
@@ -5004,7 +4992,6 @@ export const applyDrcErrorForces = (
             maxMove: TRACE_PAD_REPAIR_MAX_MOVE * Math.abs(scale),
             moveDivisor: 1,
             translateSharedViaSite: allowSharedViaSiteMove,
-            currentVias: vias,
           },
         )
         if (pushedViaSegment) {
@@ -5061,7 +5048,6 @@ export const applyDrcErrorForces = (
           nearestVia,
           repulsionPoint,
           srj,
-          refreshedVias,
         ) || changed
     }
   }
