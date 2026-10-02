@@ -5,6 +5,7 @@ import type { HighDensityRoute } from "../../types/high-density-types"
 import { GlobalDrcForceImproveSolver } from "./GlobalDrcForceImproveSolver"
 import { RELAXED_DRC_OPTIONS } from "./drcPresets"
 import { getDrcSnapshot } from "./drc-snapshot"
+import { getConnMapAwareSrj } from "./netUtils"
 import {
   applyBroadRepulsionForces,
   cloneRoutes,
@@ -40,6 +41,7 @@ export class GlobalDrcBranchPortfolioSolver extends BaseSolver {
   readonly broadMaxIterations: number
   readonly broadPassMultiplier: number
   readonly autoroutingDrcEngine?: AutoroutingDrcEngine
+  private readonly connMapAwareSrj: GlobalDrcBranchPortfolioSolverParams["srj"]
   readonly legacyDrcEvaluator: DrcEvaluator
   outputHdRoutes: HighDensityRoute[]
   private phase: PortfolioPhase = "start"
@@ -112,6 +114,12 @@ export class GlobalDrcBranchPortfolioSolver extends BaseSolver {
             includeTraceViaOwnerMetadata:
               params.enableTraceViaOwnerTargeting ?? false,
           }))
+    this.connMapAwareSrj =
+      params.drcEvaluator ||
+      params.referenceDrcEvaluator ||
+      params.viaInPadDrcEvaluator
+        ? getConnMapAwareSrj(params.srj, params.connMap)
+        : params.srj
     this.legacyDrcEvaluator = (input) => {
       const stagedLegacyEvaluator =
         params.drcEvaluator?.evaluateLegacy ?? params.drcEvaluator
@@ -179,10 +187,27 @@ export class GlobalDrcBranchPortfolioSolver extends BaseSolver {
       return { errors, count: errors.length }
     }
     return getDrcSnapshot(
-      this.params.srj,
+      this.connMapAwareSrj,
       routes,
       this.params.referenceDrcEvaluator,
-      this.params.connMap,
+      undefined,
+      this.autoroutingDrcEngine,
+    )
+  }
+
+  private getSnapshot(
+    routes: HighDensityRoute[],
+    drcEvaluator: DrcEvaluator | undefined = this.params.drcEvaluator,
+  ): DrcSnapshot {
+    const drcSrj =
+      this.autoroutingDrcEngine && !drcEvaluator
+        ? this.params.srj
+        : this.connMapAwareSrj
+    return getDrcSnapshot(
+      drcSrj,
+      routes,
+      drcEvaluator,
+      drcEvaluator ? undefined : this.params.connMap,
       this.autoroutingDrcEngine,
     )
   }
@@ -371,13 +396,7 @@ export class GlobalDrcBranchPortfolioSolver extends BaseSolver {
       this.broadPassMultiplier,
       this.params.connMap,
     )
-    this.broadInputSnapshot = getDrcSnapshot(
-      this.params.srj,
-      broadInputRoutes,
-      this.params.drcEvaluator,
-      this.params.connMap,
-      this.autoroutingDrcEngine,
-    )
+    this.broadInputSnapshot = this.getSnapshot(broadInputRoutes)
     if (
       !isDrcSnapshotCountBetter(this.broadInputSnapshot, this.baselineSnapshot!)
     ) {
@@ -403,13 +422,7 @@ export class GlobalDrcBranchPortfolioSolver extends BaseSolver {
 
   override _step() {
     if (this.phase === "start") {
-      this.inputSnapshot = getDrcSnapshot(
-        this.params.srj,
-        this.inputHdRoutes,
-        this.params.drcEvaluator,
-        this.params.connMap,
-        this.autoroutingDrcEngine,
-      )
+      this.inputSnapshot = this.getSnapshot(this.inputHdRoutes)
       if (getNonViaPadDrcIssueCount(this.inputSnapshot) === 0) {
         this.startViaInPadPhase(this.inputHdRoutes, this.inputSnapshot)
         return
@@ -422,13 +435,7 @@ export class GlobalDrcBranchPortfolioSolver extends BaseSolver {
       this.stepBranch(this.baselineSolver!, "baseline")
       if (!this.baselineSolver!.solved) return
       const baselineRoutes = this.baselineSolver!.getOutput()
-      this.baselineSnapshot = getDrcSnapshot(
-        this.params.srj,
-        baselineRoutes,
-        this.params.drcEvaluator,
-        this.params.connMap,
-        this.autoroutingDrcEngine,
-      )
+      this.baselineSnapshot = this.getSnapshot(baselineRoutes)
       if (getNonViaPadDrcIssueCount(this.baselineSnapshot) === 0) {
         this.startViaInPadPhase(
           baselineRoutes,
@@ -456,13 +463,7 @@ export class GlobalDrcBranchPortfolioSolver extends BaseSolver {
       this.stepBranch(this.broadSolver!, "broad")
       if (!this.broadSolver!.solved) return
       const broadRoutes = this.broadSolver!.getOutput()
-      this.broadSnapshot = getDrcSnapshot(
-        this.params.srj,
-        broadRoutes,
-        this.params.drcEvaluator,
-        this.params.connMap,
-        this.autoroutingDrcEngine,
-      )
+      this.broadSnapshot = this.getSnapshot(broadRoutes)
       if (
         isDrcSnapshotCountBetter(this.broadSnapshot, this.baselineSnapshot!)
       ) {
@@ -485,13 +486,7 @@ export class GlobalDrcBranchPortfolioSolver extends BaseSolver {
       this.stepBranch(this.safeTraceLayerSolver!, "safe trace-layer")
       if (!this.safeTraceLayerSolver!.solved) return
       const safeTraceLayerRoutes = this.safeTraceLayerSolver!.getOutput()
-      const safeTraceLayerSnapshot = getDrcSnapshot(
-        this.params.srj,
-        safeTraceLayerRoutes,
-        this.params.drcEvaluator,
-        this.params.connMap,
-        this.autoroutingDrcEngine,
-      )
+      const safeTraceLayerSnapshot = this.getSnapshot(safeTraceLayerRoutes)
       // Match the inner solver's staged scoring: via-pad issues are handled
       // by the following phase, while via-pair/trace collisions stay guarded.
       const inputViaIssueCount = getViaDrcIssueCount(
@@ -544,13 +539,7 @@ export class GlobalDrcBranchPortfolioSolver extends BaseSolver {
       this.stepBranch(this.mixedSafeTraceLayerSolver!, "mixed safe trace-layer")
       if (!this.mixedSafeTraceLayerSolver!.solved) return
       const mixedRoutes = this.mixedSafeTraceLayerSolver!.getOutput()
-      const mixedSnapshot = getDrcSnapshot(
-        this.params.srj,
-        mixedRoutes,
-        this.params.drcEvaluator,
-        this.params.connMap,
-        this.autoroutingDrcEngine,
-      )
+      const mixedSnapshot = this.getSnapshot(mixedRoutes)
       const doesNotRegressLegacyDrc =
         getNonViaPadDrcIssueCount(mixedSnapshot) <=
         getNonViaPadDrcIssueCount(this.legacySafeTraceLayerSnapshot!)
@@ -587,12 +576,9 @@ export class GlobalDrcBranchPortfolioSolver extends BaseSolver {
       this.stepBranch(this.viaInPadSolver!, "via-in-pad")
       if (!this.viaInPadSolver!.solved) return
       const viaInPadRoutes = this.viaInPadSolver!.getOutput()
-      const viaInPadSnapshot = getDrcSnapshot(
-        this.params.srj,
+      const viaInPadSnapshot = this.getSnapshot(
         viaInPadRoutes,
         this.params.viaInPadDrcEvaluator ?? this.params.drcEvaluator,
-        this.params.connMap,
-        this.autoroutingDrcEngine,
       )
       this.finishWithOutput(
         viaInPadRoutes,
