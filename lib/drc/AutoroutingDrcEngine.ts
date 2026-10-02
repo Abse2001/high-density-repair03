@@ -537,6 +537,7 @@ export class AutoroutingDrcEngine {
   private readonly viaToPadClearance: number
   private readonly cellSize: number
   private readonly connMap?: ConnectivityMap
+  private readonly resolvedNetIdById?: Map<string, string>
   private readonly includeTraceViaOwnerMetadata: boolean
   private readonly canonicalNetByAlias = new Map<string, string>()
   private readonly connMapNetByCanonicalNet = new Map<string, string>()
@@ -576,6 +577,9 @@ export class AutoroutingDrcEngine {
       this.srj.minViaEdgeToPadEdgeClearance ??
       DEFAULT_VIA_TO_PAD_CLEARANCE
     this.connMap = options.connMap
+    this.resolvedNetIdById = options.connectivityMapIsImmutable
+      ? new Map()
+      : undefined
     this.includeTraceViaOwnerMetadata =
       options.includeTraceViaOwnerMetadata ?? false
     this.cellSize = options.spatialCellSize ?? this.getDefaultSpatialCellSize()
@@ -697,16 +701,25 @@ export class AutoroutingDrcEngine {
     }
   }
 
-  private resolveNetId(id: string) {
+  private resolveNetId(id: string): string {
+    const cachedNetId = this.resolvedNetIdById?.get(id)
+    if (cachedNetId !== undefined) return cachedNetId
     const connMapNetId = this.connMap?.getNetConnectedToId(id)
-    if (connMapNetId) return connMapNetId
     const canonicalNet = this.canonicalNetByAlias.get(id)
-    if (!canonicalNet) return id
-    return this.connMapNetByCanonicalNet.get(canonicalNet) ?? canonicalNet
+    const resolvedNetId =
+      connMapNetId ??
+      (canonicalNet
+        ? (this.connMapNetByCanonicalNet.get(canonicalNet) ?? canonicalNet)
+        : id)
+    this.resolvedNetIdById?.set(id, resolvedNetId)
+    return resolvedNetId
   }
 
-  private areConnected(left: string, right: string) {
+  private areConnected(left: string, right: string): boolean {
     if (left === right) return true
+    if (this.resolvedNetIdById) {
+      return this.resolveNetId(left) === this.resolveNetId(right)
+    }
     if (this.connMap?.areIdsConnected(left, right)) return true
     return this.resolveNetId(left) === this.resolveNetId(right)
   }
