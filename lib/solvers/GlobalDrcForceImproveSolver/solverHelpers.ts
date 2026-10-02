@@ -349,37 +349,39 @@ export const collectViaNodes = (
   for (let routeIndex = 0; routeIndex < routes.length; routeIndex += 1) {
     const route = routes[routeIndex]
     if (!route) continue
-    const seenIndexes = new Set<number>()
+    let groupStart = 0
 
-    for (let index = 0; index < route.route.length - 1; index += 1) {
-      const current = route.route[index]
-      const next = route.route[index + 1]
-      if (!current || !next) continue
-      if (current.z === next.z || !areSameXY(current, next)) continue
-
-      const pointIndexes = [index, index + 1]
-      for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
-        const point = route.route[cursor]
-        if (!point || !areSameXY(point, current)) break
-        pointIndexes.push(cursor)
-      }
-      for (let cursor = index + 2; cursor < route.route.length; cursor += 1) {
-        const point = route.route[cursor]
-        if (!point || !areSameXY(point, current)) break
-        pointIndexes.push(cursor)
-      }
-
-      const uniquePointIndexes = [...new Set(pointIndexes)]
-      if (
-        uniquePointIndexes.some((pointIndex) => seenIndexes.has(pointIndex))
+    while (groupStart < route.route.length - 1) {
+      const groupPoint = route.route[groupStart]!
+      let groupEnd = groupStart
+      while (
+        groupEnd + 1 < route.route.length &&
+        areSameXY(groupPoint, route.route[groupEnd + 1]!)
       ) {
+        groupEnd += 1
+      }
+
+      let transitionIndex: number | undefined
+      for (let index = groupStart; index < groupEnd; index += 1) {
+        if (route.route[index]!.z !== route.route[index + 1]!.z) {
+          transitionIndex = index
+          break
+        }
+      }
+      if (transitionIndex === undefined) {
+        groupStart = groupEnd + 1
         continue
       }
-      for (const pointIndex of uniquePointIndexes) {
-        seenIndexes.add(pointIndex)
+
+      const pointIndexes = [transitionIndex, transitionIndex + 1]
+      for (let index = transitionIndex - 1; index >= groupStart; index -= 1) {
+        pointIndexes.push(index)
+      }
+      for (let index = transitionIndex + 2; index <= groupEnd; index += 1) {
+        pointIndexes.push(index)
       }
 
-      const endpointPointIndexes = uniquePointIndexes.filter(
+      const endpointPointIndexes = pointIndexes.filter(
         (pointIndex) =>
           pointIndex === 0 || pointIndex === route.route.length - 1,
       )
@@ -387,7 +389,7 @@ export const collectViaNodes = (
         Boolean(route.route[pointIndex]?.pcb_port_id),
       )
 
-      const endpointZ = uniquePointIndexes.map((i) => route.route[i]!.z)
+      const endpointZ = pointIndexes.map((i) => route.route[i]!.z)
       const minZ = srj.allowBlindAndBuriedVias ? Math.min(...endpointZ) : 0
       const maxZ = srj.allowBlindAndBuriedVias
         ? Math.max(...endpointZ)
@@ -395,15 +397,16 @@ export const collectViaNodes = (
       vias.push({
         routeIndex,
         rootConnectionName: getRootConnectionName(route),
-        pointIndexes: uniquePointIndexes,
+        pointIndexes,
         zLayers: Array.from({ length: maxZ - minZ + 1 }, (_, z) => minZ + z),
-        x: current.x,
-        y: current.y,
+        x: groupPoint.x,
+        y: groupPoint.y,
         radius: (route.viaDiameter ?? srj.minViaDiameter ?? 0.3) / 2,
         movable: endpointPointIndexes.length === 0,
         canCanonicalize:
           endpointPointIndexes.length === 0 || !hasTaggedTerminal,
       })
+      groupStart = groupEnd + 1
     }
   }
 
