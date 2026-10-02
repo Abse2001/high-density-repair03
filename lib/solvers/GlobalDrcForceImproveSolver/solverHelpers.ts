@@ -2450,17 +2450,10 @@ const pushViaViaPair = (
   right: ViaNode,
   srj: SimpleRouteJson,
   connMap?: ConnectivityMap,
-  options: {
-    maxMove?: number
-    allowSameNet?: boolean
-    currentVias?: ViaNode[]
-  } = {},
+  maxMove = BROAD_MAX_MOVE,
+  allowSameNet = false,
+  currentVias?: ViaNode[],
 ) => {
-  const {
-    maxMove = BROAD_MAX_MOVE,
-    allowSameNet = false,
-    currentVias,
-  } = options
   if (
     !allowSameNet &&
     sharesNet(left.rootConnectionName, right.rootConnectionName, connMap)
@@ -2576,19 +2569,10 @@ const pushViaSegmentPair = (
   segment: Segment,
   srj: SimpleRouteJson,
   connMap?: ConnectivityMap,
-  options: {
-    maxMove?: number
-    moveDivisor?: number
-    translateSharedViaSite?: boolean
-    currentVias?: ViaNode[]
-  } = {},
+  maxMove = BROAD_MAX_MOVE,
+  moveDivisor = 2,
+  translateSharedViaSite = false,
 ) => {
-  const {
-    maxMove = BROAD_MAX_MOVE,
-    moveDivisor = 2,
-    translateSharedViaSite = false,
-    currentVias,
-  } = options
   if (sharesNet(via.rootConnectionName, segment.rootConnectionName, connMap))
     return false
 
@@ -2628,16 +2612,8 @@ const pushViaSegmentPair = (
         directionX * move,
         directionY * move,
         srj,
-        currentVias,
       )
-    : moveVia(
-        routes,
-        via,
-        directionX * move,
-        directionY * move,
-        srj,
-        currentVias,
-      )
+    : moveVia(routes, via, directionX * move, directionY * move, srj)
   const movedSegment = moveSegmentByDistribution(
     routes,
     segment,
@@ -2998,10 +2974,9 @@ const applyBroadRepulsionPass = (
           right,
           srj,
           connMap,
-          {
-            allowSameNet: allowSameNetViaPairs,
-            currentVias: vias,
-          },
+          BROAD_MAX_MOVE,
+          allowSameNetViaPairs,
+          vias,
         ) || changed
     }
   }
@@ -3018,13 +2993,7 @@ const applyBroadRepulsionPass = (
       const segment = segments[segmentIndex]
       if (!segment) continue
       changed =
-        pushViaSegmentPair(
-          routes,
-          via,
-          segment,
-          srj,
-          connMap,
-        ) || changed
+        pushViaSegmentPair(routes, via, segment, srj, connMap) || changed
     }
   }
 
@@ -3098,7 +3067,8 @@ const applyBroadViaSegmentCleanupPass = (
           segment,
           srj,
           connMap,
-          { moveDivisor: 1.75 },
+          BROAD_MAX_MOVE,
+          1.75,
         ) || changed
     }
   }
@@ -4854,21 +4824,14 @@ export const applyDrcErrorForces = (
                 nearestViaPair[1],
                 srj,
                 connMap,
-                {
-                  maxMove: VIA_PAIR_REPAIR_MAX_MOVE * Math.abs(scale),
-                  allowSameNet: isCanonicalViaPairError,
-                },
+                VIA_PAIR_REPAIR_MAX_MOVE * Math.abs(scale),
+                isCanonicalViaPairError,
               )) || changed
       } else {
         const nearestVia = getNearestVia(vias, center, targetRouteIndex)
         if (nearestVia) {
           changed =
-            moveViaAwayFromPoint(
-              routes,
-              nearestVia,
-              repulsionPoint,
-              srj,
-            ) ||
+            moveViaAwayFromPoint(routes, nearestVia, repulsionPoint, srj) ||
             changed
         }
       }
@@ -4900,12 +4863,7 @@ export const applyDrcErrorForces = (
       const nearestOwnerVia = getNearestVia(vias, center, routeIndex)
       if (nearestOwnerVia) {
         changed =
-          moveViaAwayFromPoint(
-            routes,
-            nearestOwnerVia,
-            center,
-            srj,
-          ) || changed
+          moveViaAwayFromPoint(routes, nearestOwnerVia, center, srj) || changed
         continue
       }
     }
@@ -4988,11 +4946,9 @@ export const applyDrcErrorForces = (
           nearestSegment,
           srj,
           connMap,
-          {
-            maxMove: TRACE_PAD_REPAIR_MAX_MOVE * Math.abs(scale),
-            moveDivisor: 1,
-            translateSharedViaSite: allowSharedViaSiteMove,
-          },
+          TRACE_PAD_REPAIR_MAX_MOVE * Math.abs(scale),
+          1,
+          allowSharedViaSiteMove,
         )
         if (pushedViaSegment) {
           changed = true
@@ -5034,21 +4990,15 @@ export const applyDrcErrorForces = (
 
     // Segment repair above can splice this route. Resolve its current via
     // points so both ends of the layer transition move together.
-    const refreshedVias = hasTargetedTraceViaMetadata
-      ? []
-      : collectViaNodes(routes, srj)
-    const nearestVia = getNearestVia(refreshedVias, center)
+    const nearestVia = hasTargetedTraceViaMetadata
+      ? undefined
+      : getNearestVia(collectViaNodes(routes, srj), center)
     if (
       nearestVia &&
       Math.hypot(nearestVia.x - center.x, nearestVia.y - center.y) < 0.35
     ) {
       changed =
-        moveViaAwayFromPoint(
-          routes,
-          nearestVia,
-          repulsionPoint,
-          srj,
-        ) || changed
+        moveViaAwayFromPoint(routes, nearestVia, repulsionPoint, srj) || changed
     }
   }
 
