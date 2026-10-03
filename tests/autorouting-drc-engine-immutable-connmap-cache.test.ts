@@ -45,3 +45,45 @@ test("immutable connectivity maps retain their aliases with geometry caches", ()
   expect(cached.evaluate(traces)).toEqual(ordinary.evaluate(traces))
   expect(cached.evaluate(traces).errors).toHaveLength(0)
 })
+
+test("immutable connectivity caches preserve network-id aliases", (): void => {
+  const srj: SimpleRouteJson = {
+    bounds: { minX: -2, minY: -2, maxX: 2, maxY: 2 },
+    layerCount: 2,
+    minTraceWidth: 0.1,
+    connections: [],
+    obstacles: [
+      {
+        type: "rect",
+        layers: ["top"],
+        center: { x: 0, y: 0 },
+        width: 0.5,
+        height: 0.5,
+        connectedTo: ["member"],
+      },
+    ],
+  }
+  const traces: SimplifiedPcbTraces = [
+    {
+      type: "pcb_trace",
+      pcb_trace_id: "trace_network_alias",
+      connection_name: "connectivity_net0",
+      route: [
+        { route_type: "wire", x: -1, y: 0, width: 0.1, layer: "top" },
+        { route_type: "wire", x: 1, y: 0, width: 0.1, layer: "top" },
+      ],
+    },
+  ]
+  const connMap = new ConnectivityMap({ connectivity_net0: ["member"] })
+  connMap.addConnections([["connectivity_net0", "other"]])
+  const ordinary = new AutoroutingDrcEngine(srj, { connMap })
+  const cached = new AutoroutingDrcEngine(srj, {
+    connMap,
+    connectivityMapIsImmutable: true,
+    cacheStaticObstacleNetMembership: true,
+    cacheImmutableTraceGeometry: true,
+  })
+
+  expect(cached.evaluate(traces)).toEqual(ordinary.evaluate(traces))
+  expect(cached.evaluate(traces).errors).toHaveLength(0)
+})

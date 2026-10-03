@@ -717,9 +717,6 @@ export class AutoroutingDrcEngine {
 
   private areConnected(left: string, right: string): boolean {
     if (left === right) return true
-    if (this.resolvedNetIdById) {
-      return this.resolveNetId(left) === this.resolveNetId(right)
-    }
     if (this.connMap?.areIdsConnected(left, right)) return true
     return this.resolveNetId(left) === this.resolveNetId(right)
   }
