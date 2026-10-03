@@ -532,6 +532,8 @@ export class AutoroutingDrcEngine {
     StaticObstacle,
     Map<string, boolean>
   >()
+  private readonly connectedIdPairCache?: Map<string, Map<string, boolean>>
+  private readonly cacheStaticObstacleNetMembership: boolean
   private readonly traceClearance: number
   private readonly viaClearance: number
   private readonly viaToPadClearance: number
@@ -580,6 +582,11 @@ export class AutoroutingDrcEngine {
     this.resolvedNetIdById = options.connectivityMapIsImmutable
       ? new Map()
       : undefined
+    this.connectedIdPairCache = options.connectivityMapIsImmutable
+      ? new Map()
+      : undefined
+    this.cacheStaticObstacleNetMembership =
+      options.cacheStaticObstacleNetMembership ?? false
     this.includeTraceViaOwnerMetadata =
       options.includeTraceViaOwnerMetadata ?? false
     this.cellSize = options.spatialCellSize ?? this.getDefaultSpatialCellSize()
@@ -717,11 +724,26 @@ export class AutoroutingDrcEngine {
 
   private areConnected(left: string, right: string): boolean {
     if (left === right) return true
-    if (this.resolvedNetIdById) {
-      return this.resolveNetId(left) === this.resolveNetId(right)
+    const cached = this.connectedIdPairCache?.get(left)?.get(right)
+    if (cached !== undefined) return cached
+    const connected =
+      this.resolveNetId(left) === this.resolveNetId(right) ||
+      (this.connMap?.areIdsConnected(left, right) ?? false)
+    if (this.connectedIdPairCache) {
+      let leftPairs = this.connectedIdPairCache.get(left)
+      if (!leftPairs) {
+        leftPairs = new Map()
+        this.connectedIdPairCache.set(left, leftPairs)
+      }
+      leftPairs.set(right, connected)
+      let rightPairs = this.connectedIdPairCache.get(right)
+      if (!rightPairs) {
+        rightPairs = new Map()
+        this.connectedIdPairCache.set(right, rightPairs)
+      }
+      rightPairs.set(left, connected)
     }
-    if (this.connMap?.areIdsConnected(left, right)) return true
-    return this.resolveNetId(left) === this.resolveNetId(right)
+    return connected
   }
 
   private compileStaticObstacles() {
@@ -1128,9 +1150,11 @@ export class AutoroutingDrcEngine {
     if (this.staticObstacleNets) {
       // Geometry collection already resolves a trace's net once. Resolve it
       // again here, exactly as areConnected does, including alias collisions.
-      return this.staticObstacleNets
-        .get(obstacle)!
-        .has(this.resolveNetId(netId))
+      if (
+        this.staticObstacleNets.get(obstacle)!.has(this.resolveNetId(netId))
+      ) {
+        return true
+      }
     }
     let netCache = this.obstacleConnectivityCache.get(obstacle)
     if (!netCache) {
@@ -1460,7 +1484,9 @@ export class AutoroutingDrcEngine {
   ): AutoroutingDrcResult {
     // Candidate segments repeatedly visit the same obstacle. Connectivity is
     // fixed within one evaluation, but callers can change it between runs.
-    this.obstacleConnectivityCache.clear()
+    if (!this.cacheStaticObstacleNetMembership) {
+      this.obstacleConnectivityCache.clear()
+    }
     const { segments, vias } = this.collectDynamicGeometry(traces)
     const dynamicIndexesByLayer = this.buildDynamicIndexes(segments, vias)
     const detectedTraceErrors: AutoroutingDrcError[] = []

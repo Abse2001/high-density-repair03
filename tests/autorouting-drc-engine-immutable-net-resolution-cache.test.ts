@@ -53,3 +53,53 @@ test("immutable connectivity maps resolve each alias once", (): void => {
     getNetConnectedToId.mockRestore()
   }
 })
+
+test("immutable connectivity maps retain pairwise-only aliases", (): void => {
+  const srj: SimpleRouteJson = {
+    bounds: { minX: -2, minY: -2, maxX: 2, maxY: 2 },
+    layerCount: 2,
+    minTraceWidth: 0.1,
+    connections: [],
+    obstacles: [
+      {
+        type: "rect",
+        layers: ["top"],
+        center: { x: 0, y: 0 },
+        width: 0.5,
+        height: 0.5,
+        connectedTo: ["pcb_smtpad_pairwise"],
+      },
+    ],
+  }
+  const traces: SimplifiedPcbTraces = [
+    {
+      type: "pcb_trace",
+      pcb_trace_id: "trace_pairwise",
+      connection_name: "trace_alias",
+      route: [
+        { route_type: "wire", x: -1, y: 0, width: 0.1, layer: "top" },
+        { route_type: "wire", x: 1, y: 0, width: 0.1, layer: "top" },
+      ],
+    },
+  ]
+  let pairwiseLookupCount = 0
+  const connMap = {
+    getNetConnectedToId: () => undefined,
+    areIdsConnected: (left: string, right: string) => {
+      pairwiseLookupCount += 1
+      return (
+        (left === "trace_alias" && right === "pcb_smtpad_pairwise") ||
+        (left === "pcb_smtpad_pairwise" && right === "trace_alias")
+      )
+    },
+  } as unknown as ConnectivityMap
+  const engine = new AutoroutingDrcEngine(srj, {
+    connMap,
+    connectivityMapIsImmutable: true,
+    cacheStaticObstacleNetMembership: true,
+  })
+
+  expect(engine.evaluate(traces).errors).toHaveLength(0)
+  expect(engine.evaluate(traces).errors).toHaveLength(0)
+  expect(pairwiseLookupCount).toBe(1)
+})
