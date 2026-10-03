@@ -54,6 +54,7 @@ import {
 import { applyTraceToPadClearanceRelaxation } from "./traceToPadClearanceRelaxation"
 import { applyViaToPadClearanceRelaxation } from "./viaToPadClearanceRelaxation"
 import { RELAXED_DRC_OPTIONS } from "./drcPresets"
+import { getConnMapAwareSrj } from "./netUtils"
 import type {
   DrcEvaluator,
   DrcSnapshot,
@@ -178,6 +179,8 @@ export class GlobalDrcForceImproveSolver extends BaseSolver {
   readonly inputHdRoutes: HighDensityRoute[]
   readonly guardedInputHdRoutes: HighDensityRoute[]
   readonly connMap?: ConnectivityMap
+  private readonly drcSrj: SimpleRouteJson
+  private readonly referenceDrcSrj: SimpleRouteJson
   readonly effort: number
   readonly drcEvaluator?: DrcEvaluator
   readonly referenceDrcEvaluator?: DrcEvaluator
@@ -250,6 +253,17 @@ export class GlobalDrcForceImproveSolver extends BaseSolver {
             includeTraceViaOwnerMetadata:
               params.enableTraceViaOwnerTargeting ?? false,
           }))
+    const connMapAwareSrj =
+      params.drcEvaluator || params.referenceDrcEvaluator
+        ? getConnMapAwareSrj(params.srj, params.connMap)
+        : params.srj
+    this.drcSrj =
+      this.autoroutingDrcEngine && !params.drcEvaluator
+        ? params.srj
+        : connMapAwareSrj
+    this.referenceDrcSrj = params.referenceDrcEvaluator
+      ? connMapAwareSrj
+      : params.srj
     if (
       params.viaHoleDiameter !== undefined &&
       (!Number.isFinite(params.viaHoleDiameter) || params.viaHoleDiameter <= 0)
@@ -361,10 +375,10 @@ export class GlobalDrcForceImproveSolver extends BaseSolver {
       ? getTopologyRepairDrcSnapshot
       : getDrcSnapshot
     return createSnapshot(
-      this.srj,
+      this.drcSrj,
       routes,
       this.drcEvaluator,
-      this.connMap,
+      this.drcEvaluator ? undefined : this.connMap,
       this.autoroutingDrcEngine,
     )
   }
@@ -385,10 +399,10 @@ export class GlobalDrcForceImproveSolver extends BaseSolver {
       return { errors, count: errors.length }
     }
     return getDrcSnapshot(
-      this.srj,
+      this.referenceDrcSrj,
       routes,
       this.referenceDrcEvaluator,
-      this.connMap,
+      this.referenceDrcEvaluator ? undefined : this.connMap,
       this.autoroutingDrcEngine,
     )
   }
