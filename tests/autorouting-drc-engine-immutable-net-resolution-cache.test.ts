@@ -46,9 +46,9 @@ test("immutable connectivity maps resolve each alias once", (): void => {
     expect(engine.evaluate(traces).errors).toHaveLength(0)
     expect(engine.evaluate(traces).errors).toHaveLength(0)
     expect(getNetConnectedToId).toHaveBeenCalledTimes(4)
-    expect(
-      new Set(getNetConnectedToId.mock.calls.map(([id]) => id)).size,
-    ).toBe(4)
+    expect(new Set(getNetConnectedToId.mock.calls.map(([id]) => id)).size).toBe(
+      4,
+    )
   } finally {
     getNetConnectedToId.mockRestore()
   }
