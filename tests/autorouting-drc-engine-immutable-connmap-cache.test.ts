@@ -51,7 +51,13 @@ test("immutable connectivity caches preserve network-id aliases", (): void => {
     bounds: { minX: -2, minY: -2, maxX: 2, maxY: 2 },
     layerCount: 2,
     minTraceWidth: 0.1,
-    connections: [],
+    connections: [
+      {
+        name: "trace_alias",
+        netConnectionName: "connectivity_net0",
+        pointsToConnect: [{ x: 0, y: 0, pointId: "member", layers: ["top"] }],
+      },
+    ],
     obstacles: [
       {
         type: "rect",
@@ -67,7 +73,7 @@ test("immutable connectivity caches preserve network-id aliases", (): void => {
     {
       type: "pcb_trace",
       pcb_trace_id: "trace_network_alias",
-      connection_name: "connectivity_net0",
+      connection_name: "trace_alias",
       route: [
         { route_type: "wire", x: -1, y: 0, width: 0.1, layer: "top" },
         { route_type: "wire", x: 1, y: 0, width: 0.1, layer: "top" },

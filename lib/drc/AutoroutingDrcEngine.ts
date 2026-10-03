@@ -538,6 +538,7 @@ export class AutoroutingDrcEngine {
   private readonly cellSize: number
   private readonly connMap?: ConnectivityMap
   private readonly resolvedNetIdById?: Map<string, string>
+  private readonly connectedByLeftId?: Map<string, Map<string, boolean>>
   private readonly includeTraceViaOwnerMetadata: boolean
   private readonly canonicalNetByAlias = new Map<string, string>()
   private readonly connMapNetByCanonicalNet = new Map<string, string>()
@@ -578,6 +579,9 @@ export class AutoroutingDrcEngine {
       DEFAULT_VIA_TO_PAD_CLEARANCE
     this.connMap = options.connMap
     this.resolvedNetIdById = options.connectivityMapIsImmutable
+      ? new Map()
+      : undefined
+    this.connectedByLeftId = options.connectivityMapIsImmutable
       ? new Map()
       : undefined
     this.includeTraceViaOwnerMetadata =
@@ -631,7 +635,7 @@ export class AutoroutingDrcEngine {
 
     this.compileConnectionAliases()
     this.obstacles = this.compileStaticObstacles()
-    if (options.cacheStaticObstacleNetMembership) {
+    if (options.cacheStaticObstacleNetMembership && !this.connMap) {
       this.staticObstacleNets = new Map(
         this.obstacles.map((obstacle): [StaticObstacle, Set<string>] => [
           obstacle,
@@ -717,8 +721,20 @@ export class AutoroutingDrcEngine {
 
   private areConnected(left: string, right: string): boolean {
     if (left === right) return true
-    if (this.connMap?.areIdsConnected(left, right)) return true
-    return this.resolveNetId(left) === this.resolveNetId(right)
+    const cached = this.connectedByLeftId?.get(left)?.get(right)
+    if (cached !== undefined) return cached
+    const connected =
+      (this.connMap?.areIdsConnected(left, right) ?? false) ||
+      this.resolveNetId(left) === this.resolveNetId(right)
+    if (this.connectedByLeftId) {
+      let connectedByRightId = this.connectedByLeftId.get(left)
+      if (!connectedByRightId) {
+        connectedByRightId = new Map()
+        this.connectedByLeftId.set(left, connectedByRightId)
+      }
+      connectedByRightId.set(right, connected)
+    }
+    return connected
   }
 
   private compileStaticObstacles() {
