@@ -146,6 +146,11 @@ export interface AutoroutingDrcEngineOptions {
    */
   connMap?: ConnectivityMap
   /**
+   * Declares that `connMap` will not change during this engine's lifetime.
+   * Required when connectivity-dependent caches are enabled with a map.
+   */
+  connectivityMapIsImmutable?: boolean
+  /**
    * Include explicit trace/via owner ids for preload-aware repair targeting.
    * Defaults to false so legacy callers receive the original error shape.
    */
@@ -532,6 +537,8 @@ export class AutoroutingDrcEngine {
   private readonly viaToPadClearance: number
   private readonly cellSize: number
   private readonly connMap?: ConnectivityMap
+  private readonly resolvedNetIdById?: Map<string, string>
+  private readonly connectedByLeftId?: Map<string, Map<string, boolean>>
   private readonly includeTraceViaOwnerMetadata: boolean
   private readonly canonicalNetByAlias = new Map<string, string>()
   private readonly connMapNetByCanonicalNet = new Map<string, string>()
@@ -571,6 +578,12 @@ export class AutoroutingDrcEngine {
       this.srj.minViaEdgeToPadEdgeClearance ??
       DEFAULT_VIA_TO_PAD_CLEARANCE
     this.connMap = options.connMap
+    this.resolvedNetIdById = options.connectivityMapIsImmutable
+      ? new Map()
+      : undefined
+    this.connectedByLeftId = options.connectivityMapIsImmutable
+      ? new Map()
+      : undefined
     this.includeTraceViaOwnerMetadata =
       options.includeTraceViaOwnerMetadata ?? false
     this.cellSize = options.spatialCellSize ?? this.getDefaultSpatialCellSize()
@@ -591,13 +604,21 @@ export class AutoroutingDrcEngine {
       throw new Error("spatialCellSize must be a positive finite number")
     }
 
-    if (options.cacheStaticObstacleNetMembership && this.connMap) {
+    if (
+      options.cacheStaticObstacleNetMembership &&
+      this.connMap &&
+      !options.connectivityMapIsImmutable
+    ) {
       throw new Error(
         "cacheStaticObstacleNetMembership cannot be combined with connMap",
       )
     }
 
-    if (this.cacheImmutableTraceGeometry && this.connMap) {
+    if (
+      this.cacheImmutableTraceGeometry &&
+      this.connMap &&
+      !options.connectivityMapIsImmutable
+    ) {
       throw new Error(
         "cacheImmutableTraceGeometry cannot be combined with connMap",
       )
@@ -614,7 +635,7 @@ export class AutoroutingDrcEngine {
 
     this.compileConnectionAliases()
     this.obstacles = this.compileStaticObstacles()
-    if (options.cacheStaticObstacleNetMembership) {
+    if (options.cacheStaticObstacleNetMembership && !this.connMap) {
       this.staticObstacleNets = new Map(
         this.obstacles.map((obstacle): [StaticObstacle, Set<string>] => [
           obstacle,
@@ -684,18 +705,36 @@ export class AutoroutingDrcEngine {
     }
   }
 
-  private resolveNetId(id: string) {
+  private resolveNetId(id: string): string {
+    const cachedNetId = this.resolvedNetIdById?.get(id)
+    if (cachedNetId !== undefined) return cachedNetId
     const connMapNetId = this.connMap?.getNetConnectedToId(id)
-    if (connMapNetId) return connMapNetId
     const canonicalNet = this.canonicalNetByAlias.get(id)
-    if (!canonicalNet) return id
-    return this.connMapNetByCanonicalNet.get(canonicalNet) ?? canonicalNet
+    const resolvedNetId =
+      connMapNetId ??
+      (canonicalNet
+        ? (this.connMapNetByCanonicalNet.get(canonicalNet) ?? canonicalNet)
+        : id)
+    this.resolvedNetIdById?.set(id, resolvedNetId)
+    return resolvedNetId
   }
 
-  private areConnected(left: string, right: string) {
+  private areConnected(left: string, right: string): boolean {
     if (left === right) return true
-    if (this.connMap?.areIdsConnected(left, right)) return true
-    return this.resolveNetId(left) === this.resolveNetId(right)
+    const cached = this.connectedByLeftId?.get(left)?.get(right)
+    if (cached !== undefined) return cached
+    const connected =
+      (this.connMap?.areIdsConnected(left, right) ?? false) ||
+      this.resolveNetId(left) === this.resolveNetId(right)
+    if (this.connectedByLeftId) {
+      let connectedByRightId = this.connectedByLeftId.get(left)
+      if (!connectedByRightId) {
+        connectedByRightId = new Map()
+        this.connectedByLeftId.set(left, connectedByRightId)
+      }
+      connectedByRightId.set(right, connected)
+    }
+    return connected
   }
 
   private compileStaticObstacles() {
